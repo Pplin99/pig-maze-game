@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小猪迷宫大冒险</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); font-family: 'Arial', sans-serif; overflow: hidden; }
+        .game-container { text-align: center; background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        h1 { color: #ff6b9d; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); font-size: 28px; }
+        .level-info { color: #666; font-size: 18px; margin-bottom: 15px; font-weight: bold; }
+        canvas { border: 4px solid #ff6b9d; border-radius: 10px; background: #2d3748; display: block; margin: 0 auto; }
+        .controls { margin-top: 15px; color: #555; font-size: 14px; }
+        .controls span { display: inline-block; background: #eee; padding: 5px 10px; margin: 0 5px; border-radius: 5px; font-weight: bold; color: #ff6b9d; }
+        .victory-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 1000; }
+        .victory-content { background: white; padding: 40px; border-radius: 20px; text-align: center; animation: popIn 0.5s ease-out; }
+        @keyframes popIn { 0% { transform: scale(0); opacity: 0; } 80% { transform: scale(1.1); } 100% { transform: scale(1); opacity: 1; } }
+        .victory-content h2 { color: #ff6b9d; font-size: 36px; margin-bottom: 20px; }
+        .victory-content p { color: #666; font-size: 18px; margin-bottom: 30px; }
+        .btn { background: linear-gradient(45deg, #ff6b9d, #ff8e53); color: white; border: none; padding: 15px 40px; font-size: 18px; border-radius: 30px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(255,107,157,0.4); }
+        .legend { margin-top: 10px; font-size: 12px; color: #888; }
+        .legend-item { display: inline-block; margin: 0 10px; }
+        .hint { margin-top: 8px; color: #999; font-size: 12px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🐷 小猪迷宫大冒险 🍍</h1>
+        <div class="level-info">第 <span id="currentLevel">1</span> / 5 关</div>
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <div class="controls">使用 <span>W</span> <span>A</span> <span>S</span> <span>D</span> 控制小猪移动</div>
+        <div class="hint">💡 每关都保证有一条通路可以到达菠萝！</div>
+        <div class="legend"><span class="legend-item">🐷 小猪</span><span class="legend-item">🍍 菠萝</span><span class="legend-item">⬛ 墙壁</span></div>
+    </div>
+    <div class="victory-overlay" id="victoryOverlay">
+        <div class="victory-content">
+            <h2>🎉 恭喜通关！🎉</h2>
+            <p>小猪成功吃到了所有菠萝！</p>
+            <button class="btn" onclick="restartGame()">再玩一次</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d'), cellSize = 40, rows = 15, cols = 15;
+        let currentLevel = 0, player = { x: 1, y: 1 }, pineapple = { x: 0, y: 0 }, isMoving = { w: false, a: false, s: false, d: false }, playerAngle = 0, legAngle = 0;
+        const levels = [[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,2,0,1,0,0,0,0,0,0,0,0,0,3,1],[1,1,0,1,0,1,1,1,1,1,1,1,1,1,1],[1,0,0,1,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]],[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,2,0,0,0,0,0,0,0,0,0,0,0,1,1],[1,1,1,1,1,1,1,1,1,1,1,1,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,1,1,0,1],[1,0,1,1,1,1,1,1,1,1,0,0,0,0,1],[1,0,1,0,0,0,0,0,0,1,1,1,1,0,1],[1,0,1,0,1,1,1,1,0,0,0,0,1,0,1],[1,0,1,0,1,0,0,1,1,1,1,0,1,0,1],[1,0,1,0,1,0,0,0,0,0,1,0,1,0,1],[1,0,1,0,1,1,1,1,1,0,1,0,1,0,1],[1,0,1,0,0,0,0,0,0,0,1,0,1,0,1],[1,0,1,1,1,1,1,1,1,1,1,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,3,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]],[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,2,0,0,0,0,0,0,0,1,0,0,0,3,1],[1,1,1,1,1,1,1,1,0,1,0,1,1,1,1],[1,0,0,0,0,0,0,0,0,1,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]],[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,2,0,0,0,1,0,0,0,0,0,0,0,0,1],[1,1,1,1,0,1,0,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,1,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,0,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,0,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,1,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,0,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,1,1,1,1,1,1,1,1,1,1,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,0,1,1,1,1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,3,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]],[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,2,0,0,0,0,1,0,0,0,0,0,0,0,1],[1,1,1,1,1,0,1,0,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,0,1,1,1,1,1,1,1,1,1,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,0,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,0,1,1,1,1,1,1,1,1,1,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,0,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,1,1,1,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,3,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]];
+        function initLevel(l){const m=levels[l];for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)m[y][x]===2?(player.x=x,player.y=y):m[y][x]===3&&(pineapple.x=x,pineapple.y=y);document.getElementById('currentLevel').textContent=l+1}
+        function drawWall(x,y){const px=x*cellSize,py=y*cellSize;ctx.fillStyle='#4a5568';ctx.fillRect(px,py,cellSize,cellSize);ctx.fillStyle='#718096';ctx.fillRect(px,py,cellSize,5);ctx.fillRect(px,py,5,cellSize);ctx.fillStyle='#2d3748';ctx.fillRect(px+cellSize-5,py,5,cellSize);ctx.fillRect(px,py+cellSize-5,cellSize,5);ctx.strokeStyle='#2d3748';ctx.lineWidth=2;ctx.strokeRect(px+5,py+5,cellSize-10,cellSize-10)}
+        function drawPig(x,y,moving){const px=x*cellSize+cellSize/2,py=y*cellSize+cellSize/2,size=cellSize*0.35;ctx.save();ctx.translate(px,py);moving&&ctx.rotate(Math.sin(playerAngle)*0.05);const legOffset=moving?Math.sin(legAngle)*3:0;ctx.fillStyle='#ffb6c1';ctx.fillRect(-size*0.5,size*0.3+legOffset,size*0.25,size*0.4);ctx.fillRect(size*0.25,size*0.3-legOffset,size*0.25,size*0.4);ctx.fillRect(-size*0.3,-size*0.6+legOffset,size*0.2,size*0.3);ctx.fillRect(size*0.1,-size*0.6-legOffset,size*0.2,size*0.3);ctx.beginPath();ctx.ellipse(0,0,size,size*0.8,0,0,Math.PI*2);ctx.fillStyle='#ffb6c1';ctx.fill();ctx.strokeStyle='#ff69b4';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(0,-size*0.4,size*0.6,0,Math.PI*2);ctx.fillStyle='#ffc0cb';ctx.fill();ctx.stroke();ctx.beginPath();ctx.ellipse(0,-size*0.3,size*0.25,size*0.15,0,0,Math.PI*2);ctx.fillStyle='#ff69b4';ctx.fill();ctx.fillStyle='#c71585';ctx.beginPath();ctx.arc(-size*0.08,-size*0.3,size*0.05,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(size*0.08,-size*0.3,size*0.05,0,Math.PI*2);ctx.fill();ctx.fillStyle='white';ctx.beginPath();ctx.arc(-size*0.2,-size*0.6,size*0.12,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(size*0.2,-size*0.6,size*0.12,0,Math.PI*2);ctx.fill();ctx.fillStyle='black';ctx.beginPath();ctx.arc(-size*0.2,-size*0.6,size*0.06,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(size*0.2,-size*0.6,size*0.06,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff69b4';ctx.beginPath();ctx.moveTo(-size*0.4,-size*0.8);ctx.lineTo(-size*0.5,-size*1.1);ctx.lineTo(-size*0.2,-size*0.9);ctx.fill();ctx.beginPath();ctx.moveTo(size*0.4,-size*0.8);ctx.lineTo(size*0.5,-size*1.1);ctx.lineTo(size*0.2,-size*0.9);ctx.fill();ctx.beginPath();ctx.moveTo(0,size*0.7);ctx.quadraticCurveTo(size*0.5,size*0.9,size*0.3,size*0.8);ctx.strokeStyle='#ff69b4';ctx.lineWidth=3;ctx.stroke();ctx.restore()}
+        function drawPineapple(x,y){const px=x*cellSize+cellSize/2,py=y*cellSize+cellSize/2,size=cellSize*0.4;ctx.save();ctx.translate(px,py);const float=Math.sin(Date.now()/200)*3;ctx.translate(0,float);ctx.fillStyle='#228b22';for(let i=0;i<6;i++){ctx.save();ctx.rotate(i*60*Math.PI/180);ctx.beginPath();ctx.ellipse(0,-size*0.8,size*0.15,size*0.4,0,0,Math.PI*2);ctx.fill();ctx.restore()}ctx.beginPath();ctx.ellipse(0,0,size*0.6,size*0.8,0,0,Math.PI*2);ctx.fillStyle='#ffa500';ctx.fill();ctx.strokeStyle='#ff8c00';ctx.lineWidth=2;ctx.stroke();ctx.strokeStyle='#d2691e';ctx.lineWidth=1;for(let i=-2;i<=2;i++){ctx.beginPath();ctx.moveTo(-size*0.4,i*size*0.2);ctx.lineTo(size*0.4,i*size*0.2);ctx.stroke();ctx.beginPath();ctx.moveTo(i*size*0.3,-size*0.6);ctx.lineTo(i*size*0.3,size*0.6);ctx.stroke()}ctx.beginPath();ctx.ellipse(-size*0.2,-size*0.3,size*0.15,size*0.25,-0.3,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fill();ctx.restore()}
+        function drawFloor(x,y){const px=x*cellSize,py=y*cellSize;ctx.fillStyle=(x+y)%2===0?'#f7fafc':'#edf2f7';ctx.fillRect(px,py,cellSize,cellSize);ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;ctx.strokeRect(px+2,py+2,cellSize-4,cellSize-4)}
+        function draw(){ctx.clearRect(0,0,canvas.width,canvas.height);const m=levels[currentLevel];for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)m[y][x]===1?drawWall(x,y):drawFloor(x,y);drawPineapple(pineapple.x,pineapple.y);const moving=isMoving.w||isMoving.a||isMoving.s||isMoving.d;drawPig(player.x,player.y,moving)}
+        function canMove(x,y){if(x<0||x>=cols||y<0||y>=rows)return!1;return levels[currentLevel][y][x]!==1}
+        function movePlayer(){let nx=player.x,ny=player.y,moved=!1;isMoving.w&&canMove(player.x,player.y-1)&&(ny--,moved=!0);isMoving.s&&canMove(player.x,player.y+1)&&(ny++,moved=!0);isMoving.a&&canMove(player.x-1,player.y)&&(nx--,moved=!0);isMoving.d&&canMove(player.x+1,player.y)&&(nx++,moved=!0);moved&&(player.x=nx,player.y=ny,player.x===pineapple.x&&player.y===pineapple.y&&setTimeout(()=>nextLevel(),200))}
+        function nextLevel(){currentLevel++;currentLevel>=levels.length?document.getElementById('victoryOverlay').style.display='flex':initLevel(currentLevel)}
+        function restartGame(){currentLevel=0;document.getElementById('victoryOverlay').style.display='none';initLevel(0)}
+        function gameLoop(){playerAngle+=0.1;(isMoving.w||isMoving.a||isMoving.s||isMoving.d)&&(legAngle+=0.3);Date.now()%150<16&&movePlayer();draw();requestAnimationFrame(gameLoop)}
+        document.addEventListener('keydown',e=>{const k=e.key.toLowerCase();k==='w'&&(isMoving.w=!0);k==='a'&&(isMoving.a=!0);k==='s'&&(isMoving.s=!0);k==='d'&&(isMoving.d=!0)});
+        document.addEventListener('keyup',e=>{const k=e.key.toLowerCase();k==='w'&&(isMoving.w=!1);k==='a'&&(isMoving.a=!1);k==='s'&&(isMoving.s=!1);k==='d'&&(isMoving.d=!1)});
+        let tsx=0,tsy=0;canvas.addEventListener('touchstart',e=>{tsx=e.touches[0].clientX;tsy=e.touches[0].clientY});canvas.addEventListener('touchmove',e=>{e.preventDefault();const tx=e.touches[0].clientX,ty=e.touches[0].clientY,dx=tx-tsx,dy=ty-tsy;isMoving.w=isMoving.a=isMoving.s=isMoving.d=!1;Math.abs(dx)>Math.abs(dy)?(dx>20&&(isMoving.d=!0),dx<-20&&(isMoving.a=!0)):(dy>20&&(isMoving.s=!0),dy<-20&&(isMoving.w=!0))});canvas.addEventListener('touchend',()=>{isMoving.w=isMoving.a=isMoving.s=isMoving.d=!1});initLevel(0);gameLoop();
+    </script>
+</body>
+</html>
